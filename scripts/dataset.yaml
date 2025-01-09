@@ -1,0 +1,6 @@
+train: ./content/train/images
+val: ./content/val/images
+test: ./content/test/images
+
+nc: 7  # number of classes
+names: ['Angular Leafspot', 'Anthracnose Fruit Rot', 'Blossom Blight', 'Gray Mold', 'Leaf Spot', 'Powdery Mildew Fruit', 'Powdery Mildew Leaf']

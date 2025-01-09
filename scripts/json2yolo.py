@@ -1,70 +1,87 @@
 import os
-import cv2
-import numpy as np
+import json
 from pathlib import Path
+import kagglehub
 
-# Download dataset
-#import kagglehub
-#path = kagglehub.dataset_download("usmanafzaal/strawberry-disease-detection-dataset")
-#print("Path to dataset files:", path)
-path= 'c:/dataset'
+# Download latest version
+path = kagglehub.dataset_download("usmanafzaal/strawberry-disease-detection-dataset")
+
+print("Path to dataset files:", path)
 # Paths
-dataset_path = Path(path)
-images_path = dataset_path / "train"  # Update with your dataset's image folder
-masks_path = dataset_path / "train"    # Update with your dataset's mask folder
+input_dir = path#Path(r"C:\dataset\train")
+output_dir = input_dir / 'labels'  # YOLO labels will be saved in the 'labels' directory
 
-output_path = Path("yolo_segmentation")
-output_images = output_path / "images"
-output_labels = output_path / "labels"
+# Create the 'labels' directory if it doesn't exist
+output_dir.mkdir(parents=True, exist_ok=True)
 
-# Create directories
-(output_images / "train").mkdir(parents=True, exist_ok=True)
-(output_images / "val").mkdir(parents=True, exist_ok=True)
-(output_images / "test").mkdir(parents=True, exist_ok=True)
-(output_labels / "train").mkdir(parents=True, exist_ok=True)
-(output_labels / "val").mkdir(parents=True, exist_ok=True)
-(output_labels / "test").mkdir(parents=True, exist_ok=True)
+# Define your class mapping (manually or by extracting from dataset)
+class_mapping = {
+    "Angular Leafspot": 0,
+    "Anthracnose Fruit Rot": 1,
+    "Blossom Blight": 2,
+    "Gray Mold": 3,
+    "Leaf Spot": 4,
+    "Powdery Mildew Fruit": 5,
+    "Powdery Mildew Leaf": 6,
 
-# Convert dataset
-for mask_file in masks_path.glob("*.png"):  # Update extension if needed
-    image_name = mask_file.stem + ".jpg"    # Update extension if needed
-    image_file = images_path / image_name
 
-    # Read mask and image
-    mask = cv2.imread(str(mask_file), cv2.IMREAD_GRAYSCALE)
-    image = cv2.imread(str(image_file))
-    h, w, _ = image.shape
+}
 
-    # Find contours (for segmentation mask)
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    yolo_label = []
+# Function to normalize coordinates
+def normalize(value, max_value):
+    return value / max_value
 
-    for contour in contours:
-        # Bounding box
-        x, y, bbox_w, bbox_h = cv2.boundingRect(contour)
-        x_center = (x + bbox_w / 2) / w
-        y_center = (y + bbox_h / 2) / h
-        width = bbox_w / w
-        height = bbox_h / h
+# Iterate over all JSON files
+for json_file in input_dir.glob("*.json"):
+    with open(json_file, "r") as file:
+        data = json.load(file)
 
-        # Polygon points (normalized)
-        polygon = []
-        for point in contour:
-            px, py = point[0]
-            polygon.append(px / w)
-            polygon.append(py / h)
-        
-        # YOLOv11-Seg label
-        label = [0, x_center, y_center, width, height] + polygon
-        yolo_label.append(" ".join(map(str, label)))
+    # Get image dimensions
+    img_width = data["imageWidth"]
+    img_height = data["imageHeight"]
 
-    # Save label
-    label_file = output_labels / "train" / (mask_file.stem + ".txt")  # Adjust for train/val/test
-    with open(label_file, "w") as f:
-        f.write("\n".join(yolo_label))
+    # YOLO label content
+    yolo_labels = []
 
-    # Copy image to output directory
-    output_image_file = output_images / "train" / image_name  # Adjust for train/val/test
-    cv2.imwrite(str(output_image_file), image)
+    for shape in data["shapes"]:
+        class_name = shape["label"]  # Change this to map class names to class IDs
+        points = shape["points"]
 
-print("YOLOv11-Seg dataset preparation complete!")
+        # Normalize polygon points
+        normalized_points = [
+            (normalize(x, img_width), normalize(y, img_height)) for x, y in points
+        ]
+        flattened_points = [f"{x:.6f} {y:.6f}" for x, y in normalized_points]
+
+        # Compute bounding box from the polygon
+        x_coords = [p[0] for p in points]
+        y_coords = [p[1] for p in points]
+        x_min = max(min(x_coords), 0)
+        y_min = max(min(y_coords), 0)
+        x_max = min(max(x_coords), img_width)
+        y_max = min(max(y_coords), img_height)
+
+        # Convert to YOLO format
+        x_center = normalize((x_min + x_max) / 2, img_width)
+        y_center = normalize((y_min + y_max) / 2, img_height)
+        width = normalize(x_max - x_min, img_width)
+        height = normalize(y_max - y_min, img_height)
+
+        # Add label in YOLOv11-Seg format
+        # Map the class name to a class ID
+        if class_name in class_mapping:
+            class_id = class_mapping[class_name]
+        else:
+            raise ValueError(f"Unknown class '{class_name}' found in {json_file.name}. Please update the class_mapping.")
+        yolo_labels.append(
+            f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f} " +
+            " ".join(flattened_points)
+        )
+
+    # Write YOLO label to file
+    label_file = output_dir / (json_file.stem + ".txt")
+    with open(label_file, "w") as file:
+        file.write("\n".join(yolo_labels))
+
+print("Conversion complete. YOLOv11-Seg labels saved!")
+
