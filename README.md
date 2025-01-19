@@ -3,6 +3,8 @@ StrawberriesDetection
 
 Researcher of the Universidad Autonoma de Baja California initiates a study releated to strawberry diseases by utilizing Deep Learning techniques... (2025)
 
+Use the next command to get access to this repository: !git clone https://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@github.com/edramos-lab/StrawberriiesDetection.git
+
 This repository containes two files:
 1) download.py
 2) json2yolo.py
