@@ -1,8 +1,10 @@
 import os
 import json
 from pathlib import Path
+import shutil
 import kagglehub
 import argparse
+import os
 
 def jason2yolo(input_dir):
 
@@ -82,6 +84,28 @@ def jason2yolo(input_dir):
             file.write("\n".join(yolo_labels))
 
     print("Conversion complete. YOLOv11-Seg labels saved!")
+
+
+    source_dir = input_dir
+    destination_dir = input_dir / 'images'  # YOLO images will be saved in the 'images' directory
+
+    # Create the destination directory if it doesn't exist
+    os.makedirs(destination_dir, exist_ok=True)
+
+    # Define the list of image extensions to copy
+    image_extensions = {".png", ".jpeg", ".jpg", ".bmp", ".gif"}
+
+    for filename in os.listdir(source_dir):
+        source_path = os.path.join(source_dir, filename)
+        destination_path = os.path.join(destination_dir, filename)
+        if os.path.isfile(source_path) and Path(filename).suffix.lower() in image_extensions:
+            try:
+                shutil.copy2(source_path, destination_path)  # copy2 preserves metadata
+                print(f"Copied '{filename}' to '{destination_dir}'")
+            except OSError as e:
+                print(f"Error copying '{filename}': {e}")
+        else:
+            print(f"Skipping '{filename}'")
 
 
 if __name__ == "__main__":
