@@ -5,6 +5,7 @@ setup_logger()
 
 import numpy as np
 import os, json, cv2, random
+from torch.utils.tensorboard import SummaryWriter
 
 from detectron2 import model_zoo
 from detectron2.engine import DefaultPredictor
@@ -15,12 +16,12 @@ from detectron2.engine import DefaultTrainer, HookBase
 from detectron2.evaluation import inference_on_dataset, COCOEvaluator
 from detectron2.data import build_detection_test_loader
 from detectron2.data.datasets import register_coco_instances
-import wandb
 import argparse
 
-class WandbLoggerHook(HookBase):
-    def __init__(self, trainer):
+class TensorboardLoggerHook(HookBase):
+    def __init__(self, trainer, writer):
         self.trainer = trainer
+        self.writer = writer
 
     def after_step(self):
         storage = self.trainer.storage.latest()
@@ -42,11 +43,15 @@ class WandbLoggerHook(HookBase):
             "train/rpn/num_neg_anchors": storage["rpn/num_neg_anchors"],
             "train/rpn/num_pos_anchors": storage["rpn/num_pos_anchors"]
         }
-        wandb.log(metrics)
+        for key, value in metrics.items():
+            if isinstance(value, (tuple, list)):
+                value = value[0]  # Convert tuple or list to a single value
+            self.writer.add_scalar(key, value, self.trainer.iter)
 
 class ValidationHook(HookBase):
-    def __init__(self, trainer, eval_period):
+    def __init__(self, trainer, writer, eval_period):
         self.trainer = trainer
+        self.writer = writer
         self.eval_period = eval_period
 
     def after_step(self):
@@ -54,18 +59,25 @@ class ValidationHook(HookBase):
             evaluator = COCOEvaluator("test", self.trainer.cfg, False, output_dir=self.trainer.cfg.OUTPUT_DIR)
             val_loader = build_detection_test_loader(self.trainer.cfg, "test")
             results = inference_on_dataset(self.trainer.model, val_loader, evaluator)
-            wandb.log({f"validation/{key}": value for key, value in results.items()}, step=self.trainer.iter)
+
+            for key, value in results.items():
+                if isinstance(value, dict):  # Extract nested values
+                    for sub_key, sub_value in value.items():
+                        if isinstance(sub_value, (int, float)):  # Ensure it's a scalar
+                            self.writer.add_scalar(f"validation/{key}/{sub_key}", sub_value, self.trainer.iter)
+                elif isinstance(value, (int, float)):  # Ensure it's a scalar
+                    self.writer.add_scalar(f"validation/{key}", value, self.trainer.iter)
 
 class CustomTrainer(DefaultTrainer):
-    def __init__(self, cfg):
+    def __init__(self, cfg, writer):
         super().__init__(cfg)
-        self.register_hooks([WandbLoggerHook(self), ValidationHook(self, cfg.TEST.EVAL_PERIOD)])
+        self.register_hooks([TensorboardLoggerHook(self, writer), ValidationHook(self, writer, cfg.TEST.EVAL_PERIOD)])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train Detectron2 model")
-    parser.add_argument("--project_name", type=str, required=True, help="WandB project name")
     parser.add_argument("--batch_sizes", type=int, nargs='+', required=True, help="List of batch sizes to try")
     parser.add_argument("--learning_rates", type=float, nargs='+', required=True, help="List of learning rates to try")
+    parser.add_argument("--epochs", type=int, required=True, help="Number of epochs to train")
     parser.add_argument("--data_dir", type=str, required=True, help="Dataset directory")
 
     args = parser.parse_args()
@@ -85,7 +97,6 @@ if __name__ == "__main__":
 
     for bs in args.batch_sizes:
         for lr in args.learning_rates:
-            wandb.init(project=args.project_name)
             cfg = get_cfg()
             cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
             cfg.DATASETS.TRAIN = ("train",)
@@ -93,14 +104,19 @@ if __name__ == "__main__":
             cfg.DATALOADER.NUM_WORKERS = 2
             cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
             cfg.SOLVER.STEPS = []
-            cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128
+            cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 2
             cfg.MODEL.ROI_HEADS.NUM_CLASSES = 7
             cfg.SOLVER.IMS_PER_BATCH = bs
             cfg.SOLVER.BASE_LR = lr
-            cfg.SOLVER.MAX_ITER = 1000
+            cfg.SOLVER.MAX_ITER = args.epochs
             cfg.TEST.EVAL_PERIOD = 100
-
-            trainer = CustomTrainer(cfg)
+            
+            run_name = f"lr_{cfg.SOLVER.BASE_LR}_batch_{cfg.SOLVER.IMS_PER_BATCH}"
+            cfg.OUTPUT_DIR = f"./output/{run_name}"
+            os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+            
+            writer = SummaryWriter(log_dir=cfg.OUTPUT_DIR)
+            trainer = CustomTrainer(cfg, writer)
             trainer.resume_or_load(resume=False)
             trainer.train()
-            wandb.finish()
+            writer.close()
