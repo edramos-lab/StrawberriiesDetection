@@ -6,6 +6,7 @@ setup_logger()
 import numpy as np
 import json, cv2, random
 from torch.utils.tensorboard import SummaryWriter
+import shutil
 
 from detectron2 import model_zoo
 from detectron2.engine import DefaultTrainer, default_setup, launch, HookBase
@@ -70,7 +71,7 @@ def setup(args):
     cfg.DATASETS.TEST = ("test",)
     cfg.DATALOADER.NUM_WORKERS = 4
     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
-    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 2
+    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 7
     cfg.SOLVER.IMS_PER_BATCH = args.batch_size
     cfg.SOLVER.BASE_LR = args.learning_rate
@@ -105,6 +106,9 @@ def main(args):
     trainer.resume_or_load(resume=False)
     trainer.train()
     writer.close()
+
+    # Zip the output directory
+    shutil.make_archive(cfg.OUTPUT_DIR, 'zip', cfg.OUTPUT_DIR)
 
 
 if __name__ == "__main__":
