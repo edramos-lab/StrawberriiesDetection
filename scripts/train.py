@@ -76,7 +76,7 @@ def setup(args):
     cfg.SOLVER.IMS_PER_BATCH = args.batch_size
     cfg.SOLVER.BASE_LR = args.learning_rate
     cfg.SOLVER.MAX_ITER = args.epochs
-    cfg.TEST.EVAL_PERIOD = 100
+    cfg.TEST.EVAL_PERIOD = 200
     cfg.OUTPUT_DIR = args.output_dir
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     # Multi-GPU Support
