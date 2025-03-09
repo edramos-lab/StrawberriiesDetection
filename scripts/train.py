@@ -76,9 +76,9 @@ def setup(args):
     cfg.SOLVER.BASE_LR = args.learning_rate
     cfg.SOLVER.MAX_ITER = args.epochs
     cfg.TEST.EVAL_PERIOD = 100
-    cfg.OUTPUT_DIR = f"./output/lr_{cfg.SOLVER.BASE_LR}_batch_{cfg.SOLVER.IMS_PER_BATCH}"
+    cfg.OUTPUT_DIR = args.output_dir
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-        # Multi-GPU Support
+    # Multi-GPU Support
     cfg.MODEL.DEVICE = "cuda"
     cfg.SOLVER.REFERENCE_WORLD_SIZE = args.num_gpus  # Multi-GPU Support
     return cfg
@@ -114,6 +114,7 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, required=True, help="Learning rate")
     parser.add_argument("--epochs", type=int, required=True, help="Number of training iterations")
     parser.add_argument("--data_dir", type=str, required=True, help="Path to dataset")
+    parser.add_argument("--output_dir", type=str, required=True, help="Directory to store output")
 
     args = parser.parse_args()
     launch(main, args.num_gpus, num_machines=1, machine_rank=0, args=(args,))
