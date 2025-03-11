@@ -53,35 +53,64 @@ class ValidationHook(HookBase):
 
 class CustomTrainer(DefaultTrainer):
     def __init__(self, cfg, writer):
-        self.writer = writer  # Store writer before calling super()
+        self.writer = writer  
         super().__init__(cfg)
 
     def build_hooks(self):
         hooks = super().build_hooks()
-        hooks.insert(-1, TensorboardLoggerHook(self, self.writer))  # Logging Hook
-        hooks.insert(-1, ValidationHook(self, self.writer, self.cfg.TEST.EVAL_PERIOD))  # Validation Hook
+        hooks.insert(-1, TensorboardLoggerHook(self, self.writer))  
+        hooks.insert(-1, ValidationHook(self, self.writer, self.cfg.TEST.EVAL_PERIOD))  
         return hooks
 
 
 def setup(args):
     """Sets up Detectron2 configuration."""
     cfg = get_cfg()
-    cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
+    
+    # Model selection
+    model_configs = {
+        "mask_rcnn": "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml",
+        "cascade_mask_rcnn": "COCO-InstanceSegmentation/cascade_mask_rcnn_R_50_FPN_3x.yaml",
+        "pointrend": "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml",  # Uses Mask R-CNN base
+        "condinst": "COCO-InstanceSegmentation/condinst_R_50_FPN_3x.yaml",
+        "solov2": "Cityscapes-InstanceSegmentation/solov2_R50_FPN_3x.yaml"
+    }
+
+    if args.instance_model not in model_configs:
+        raise ValueError(f"Invalid model name '{args.instance_model}'. Choose from: {list(model_configs.keys())}")
+
+    model_config = model_configs[args.instance_model]
+    cfg.merge_from_file(model_zoo.get_config_file(model_config))
+    
+    # Dataset
     cfg.DATASETS.TRAIN = ("train",)
     cfg.DATASETS.TEST = ("test",)
     cfg.DATALOADER.NUM_WORKERS = 4
-    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
+
+    # Model weights
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(model_config)
+
+    # Training settings
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128
-    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 7
+    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 7  # Adjust based on dataset
     cfg.SOLVER.IMS_PER_BATCH = args.batch_size
     cfg.SOLVER.BASE_LR = args.learning_rate
     cfg.SOLVER.MAX_ITER = args.epochs
     cfg.TEST.EVAL_PERIOD = 200
     cfg.OUTPUT_DIR = args.output_dir
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+
     # Multi-GPU Support
     cfg.MODEL.DEVICE = "cuda"
-    cfg.SOLVER.REFERENCE_WORLD_SIZE = args.num_gpus  # Multi-GPU Support
+    cfg.SOLVER.REFERENCE_WORLD_SIZE = args.num_gpus  
+
+    # Special settings for PointRend
+    if args.instance_model == "pointrend":
+        cfg.MODEL.MASK_ON = True
+        cfg.MODEL.POINT_HEAD.NAME = "StandardPointHead"
+        cfg.MODEL.POINT_HEAD.NUM_CLASSES = 7  
+        cfg.MODEL.POINT_HEAD.IN_FEATURES = ["p2", "p3", "p4", "p5"]
+
     return cfg
 
 
@@ -119,6 +148,9 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, required=True, help="Number of training iterations")
     parser.add_argument("--data_dir", type=str, required=True, help="Path to dataset")
     parser.add_argument("--output_dir", type=str, required=True, help="Directory to store output")
+    parser.add_argument("--instance_model", type=str, required=True, 
+                        choices=["mask_rcnn", "cascade_mask_rcnn", "pointrend", "condinst", "solov2"],
+                        help="Choose instance segmentation model")
 
     args = parser.parse_args()
     launch(main, args.num_gpus, num_machines=1, machine_rank=0, args=(args,))
