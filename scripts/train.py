@@ -3,6 +3,7 @@ import torch, detectron2
 from detectron2.utils.logger import setup_logger
 setup_logger()
 
+import logging
 import numpy as np
 import json, cv2, random
 from torch.utils.tensorboard import SummaryWriter
@@ -136,8 +137,12 @@ def main(args):
     trainer.train()
     writer.close()
 
-    # Zip the output directory
-    shutil.make_archive(cfg.OUTPUT_DIR, 'zip', cfg.OUTPUT_DIR)
+    try:
+        zip_path= shutil.make_archive(cfg.OUTPUT_DIR, 'zip', cfg.OUTPUT_DIR)
+        print(f"Model saved to {zip_path}")
+    except Exception as e:
+        print(f"Error zipping model: {e}")
+        raise
 
 
 if __name__ == "__main__":
