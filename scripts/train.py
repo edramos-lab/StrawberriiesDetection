@@ -72,7 +72,7 @@ def setup(args):
     cfg.DATALOADER.NUM_WORKERS = 4
     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128
-    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 7
+    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 9
     cfg.SOLVER.IMS_PER_BATCH = args.batch_size
     cfg.SOLVER.BASE_LR = args.learning_rate
     cfg.SOLVER.MAX_ITER = args.epochs
