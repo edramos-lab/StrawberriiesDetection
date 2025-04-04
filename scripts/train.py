@@ -135,9 +135,25 @@ def main(args):
     trainer.train()
     writer.close()
 
+    # Save the trained model
+    model_state_path = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
+    model_full_path = os.path.join(cfg.OUTPUT_DIR, "model_final.pt")
     try:
-        zip_path= shutil.make_archive(cfg.OUTPUT_DIR, 'zip', cfg.OUTPUT_DIR)
-        print(f"Model saved to {zip_path}")
+        # Save the state dictionary (.pth)
+        torch.save(trainer.model.state_dict(), model_state_path)
+        print(f"Model state dictionary saved to {model_state_path}")
+
+        # Save the entire model (.pt)
+        torch.save(trainer.model, model_full_path)
+        print(f"Entire model saved to {model_full_path}")
+    except Exception as e:
+        print(f"Error saving model: {e}")
+        raise
+
+    # Zip the output directory
+    try:
+        zip_path = shutil.make_archive(cfg.OUTPUT_DIR, 'zip', cfg.OUTPUT_DIR)
+        print(f"Output directory zipped at: {zip_path}")
     except Exception as e:
         print(f"Error zipping model: {e}")
         raise
