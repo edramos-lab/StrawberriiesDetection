@@ -152,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, required=True, help="Path to dataset")
     parser.add_argument("--output_dir", type=str, required=True, help="Directory to store output")
     parser.add_argument("--instance_model", type=str, required=True, 
-                        choices=["mask_rcnn", "cascade_mask_rcnn", "pointrend", "condinst", "solov2"],
+                        choices=["mask_rcnn-50", "cascade_mask_rcnn", "mask_rcnn-101"],
                         help="Choose instance segmentation model")
 
     args = parser.parse_args()
