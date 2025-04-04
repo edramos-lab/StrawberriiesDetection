@@ -70,11 +70,9 @@ def setup(args):
     
     # Model selection
     model_configs = {
-        "mask_rcnn": "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml",
-        "cascade_mask_rcnn": "COCO-InstanceSegmentation/cascade_mask_rcnn_R_50_FPN_3x.yaml",
-        "pointrend": "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml",  # Uses Mask R-CNN base
-        "condinst": "COCO-InstanceSegmentation/condinst_R_50_FPN_3x.yaml",
-        "solov2": "Cityscapes-InstanceSegmentation/solov2_R50_FPN_3x.yaml"
+        "mask_rcnn-50": "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml",
+        "cascade_mask_rcnn": "Misc/cascade_mask_rcnn_R_50_FPN_3x.yaml",
+        "mask_rcnn-101": "COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml",  # Uses Mask R-CNN base
     }
 
     if args.instance_model not in model_configs:
